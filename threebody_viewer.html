@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three-Body 3D Trajectory Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            height: 100vh;
+            gap: 0;
+        }
+
+        .viewer-section {
+            position: relative;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #viewer {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(26, 26, 46, 0.9);
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+
+        .controls-overlay h3 {
+            color: #4da6ff;
+            font-size: 14px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #4da6ff;
+            padding-bottom: 5px;
+        }
+
+        .playback-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .control-btn {
+            background: linear-gradient(135deg, #4da6ff 0%, #3d85d9 100%);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(77, 166, 255, 0.4);
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+        }
+
+        .control-btn.secondary {
+            background: linear-gradient(135deg, #666 0%, #444 100%);
+        }
+
+        .speed-control {
+            margin-top: 10px;
+        }
+
+        .speed-control label {
+            display: block;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .speed-control input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: #333;
+            outline: none;
+            border-radius: 2px;
+        }
+
+        .speed-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #4da6ff;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        .timeline {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 320px;
+            background: rgba(26, 26, 46, 0.9);
+            padding: 10px 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+
+        .timeline-bar {
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            position: relative;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
+        .timeline-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #4da6ff 0%, #51cf66 100%);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .timeline-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        .side-panel {
+            background: rgba(26, 26, 46, 0.95);
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -4px 0 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .panel-section {
+            margin-bottom: 20px;
+        }
+
+        .panel-section h3 {
+            color: #4da6ff;
+            font-size: 14px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #4da6ff;
+            padding-bottom: 5px;
+        }
+
+        .file-input-wrapper {
+            background: rgba(77, 166, 255, 0.1);
+            border: 2px dashed #4da6ff;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-input-wrapper:hover {
+            background: rgba(77, 166, 255, 0.2);
+            border-color: #51cf66;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            display: none;
+        }
+
+        .file-input-label {
+            color: #4da6ff;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .integrals-compact {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            color: #e0e0e0;
+        }
+
+        .integral-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .integral-label {
+            color: #bbbbbb;
+            font-size: 11px;
+        }
+
+        .integral-value {
+            color: #6db6ff;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        .error-indicator {
+            font-size: 10px;
+            margin-left: 5px;
+            font-weight: bold;
+        }
+
+        .error-good { color: #51cf66; }
+        .error-warning { color: #ffd43b; }
+        .error-bad { color: #ff6b6b; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 9px;
+            color: #888;
+            display: block;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 14px;
+            color: #4da6ff;
+            font-weight: bold;
+            display: block;
+            margin-top: 3px;
+        }
+
+        #maxErrorDisplay {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .max-error-quantity {
+            font-size: 10px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .info-text {
+            font-size: 11px;
+            color: #888;
+            margin-top: 10px;
+            line-height: 1.4;
+        }
+
+        .legend {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="viewer-section">
+            <div id="viewer"></div>
+
+            <div class="controls-overlay">
+                <h3>Playback Controls</h3>
+                <div class="playback-controls">
+                    <button class="control-btn" id="rewindBtn">⏮ Rewind</button>
+                    <button class="control-btn" id="playPauseBtn">▶ Play</button>
+                    <button class="control-btn secondary" id="resetBtn">↻ Reset</button>
+                </div>
+                <div class="speed-control">
+                    <label>Speed: <span id="speedDisplay">1x</span></label>
+                    <input type="range" id="speedSlider" min="1" max="10" step="1" value="1">
+                </div>
+            </div>
+
+            <div class="timeline">
+                <div class="timeline-info">
+                    <span>Time: <strong id="currentTime">0.00</strong></span>
+                    <span>Frame: <strong id="currentFrame">0</strong> / <strong id="totalFrames">0</strong></span>
+                </div>
+                <div class="timeline-bar" id="timelineBar">
+                    <div class="timeline-progress" id="timelineProgress"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="side-panel">
+            <div class="panel-section">
+                <h3>Load Trajectory</h3>
+                <div class="file-input-wrapper" id="fileWrapper">
+                    <input type="file" id="fileInput" accept=".csv">
+                    <label for="fileInput" class="file-input-label">
+                        📂 Click to select CSV file
+                    </label>
+                </div>
+                <div class="info-text">
+                    CSV format: time,x1,y1,z1,vx1,vy1,vz1,m1,x2,y2,z2,vx2,vy2,vz2,m2,x3,y3,z3,vx3,vy3,vz3,m3
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>Bodies</h3>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ff4a57;"></div>
+                        <span>Body 1</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4da6ff;"></div>
+                        <span>Body 2</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #44ff88;"></div>
+                        <span>Body 3</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>Current State</h3>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <span class="stat-label">Time</span>
+                        <span class="stat-value" id="timeValue">0.00</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Max Error</span>
+                        <div id="maxErrorDisplay">
+                            <span class="max-error-quantity" id="maxErrorQuantity">—</span>
+                            <span class="stat-value" id="maxErrorValue">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>Conservation Laws</h3>
+                <div class="integrals-compact" id="integralsDisplay">
+                    <div style="text-align: center; color: #666; padding: 20px;">
+                        Load trajectory to view
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+    <script>
+        // ========== Three.js Scene Setup ==========
+        let scene, camera, renderer, orbitControls, bodies = [], trajectory, animFrame;
+        let currentIdx = 0, playbackSpeed = 1, isPlaying = false;
+        let diagnosticData = null, initialIntegrals = null;
+        const N = 3;
+        const colors = [0xff4a57, 0x4da6ff, 0x44ff88];
+
+        function init3D() {
+            const viewerDiv = document.getElementById('viewer');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+
+            camera = new THREE.PerspectiveCamera(
+                60,
+                viewerDiv.clientWidth / viewerDiv.clientHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(5, 5, 5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(viewerDiv.clientWidth, viewerDiv.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            viewerDiv.appendChild(renderer.domElement);
+
+            // Orbit controls for mouse rotation
+            orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+            orbitControls.enableDamping = true;
+            orbitControls.dampingFactor = 0.05;
+            orbitControls.minDistance = 1;
+            orbitControls.maxDistance = 50;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+            scene.add(ambientLight);
+
+            const pointLight1 = new THREE.PointLight(0xffffff, 1);
+            pointLight1.position.set(10, 10, 10);
+            scene.add(pointLight1);
+
+            const pointLight2 = new THREE.PointLight(0x4da6ff, 0.5);
+            pointLight2.position.set(-10, -10, -10);
+            scene.add(pointLight2);
+
+            // Grid and axes
+            const gridHelper = new THREE.GridHelper(10, 20, 0x444444, 0x222222);
+            scene.add(gridHelper);
+
+            const axesHelper = new THREE.AxesHelper(3);
+            scene.add(axesHelper);
+
+            // Create bodies
+            for (let i = 0; i < N; i++) {
+                const geometry = new THREE.SphereGeometry(0.1, 32, 32);
+                const material = new THREE.MeshPhongMaterial({
+                    color: colors[i],
+                    emissive: colors[i],
+                    emissiveIntensity: 0.3,
+                    shininess: 100
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                scene.add(mesh);
+
+                // Trail
+                const trailGeometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(3000); // 1000 points × 3
+                trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const trailMaterial = new THREE.LineBasicMaterial({
+                    color: colors[i],
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const trail = new THREE.Line(trailGeometry, trailMaterial);
+                scene.add(trail);
+
+                bodies.push({ mesh, trail });
+            }
+
+            // Window resize
+            window.addEventListener('resize', onWindowResize);
+
+            // Start render loop
+            animate3D();
+        }
+
+        function onWindowResize() {
+            const viewerDiv = document.getElementById('viewer');
+            camera.aspect = viewerDiv.clientWidth / viewerDiv.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(viewerDiv.clientWidth, viewerDiv.clientHeight);
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            orbitControls.update();
+            renderer.render(scene, camera);
+        }
+
+        function update3D(idx) {
+            if (!trajectory || idx >= trajectory.length) return;
+
+            for (let i = 0; i < N; i++) {
+                const x = parseFloat(trajectory[idx][1 + i * 7]);
+                const y = parseFloat(trajectory[idx][2 + i * 7]);
+                const z = parseFloat(trajectory[idx][3 + i * 7]);
+
+                bodies[i].mesh.position.set(x, y, z);
+
+                // Update trail
+                const trailPos = bodies[i].trail.geometry.attributes.position;
+                const trailLength = 300;
+                for (let j = 0; j < trailLength; j++) {
+                    const ti = Math.max(0, idx - j * 2);
+                    if (ti < trajectory.length) {
+                        const tx = parseFloat(trajectory[ti][1 + i * 7]);
+                        const ty = parseFloat(trajectory[ti][2 + i * 7]);
+                        const tz = parseFloat(trajectory[ti][3 + i * 7]);
+                        trailPos.setXYZ(j, tx, ty, tz);
+                    }
+                }
+                trailPos.needsUpdate = true;
+            }
+        }
+
+        // ========== Physics Calculations ==========
+        function computeIntegrals(idx) {
+            let E = 0, Px = 0, Py = 0, Pz = 0, Lx = 0, Ly = 0, Lz = 0;
+            let CMx = 0, CMy = 0, CMz = 0, CMvx = 0, CMvy = 0, CMvz = 0;
+            let M = 0, G = 1;
+            let bodiesArr = [];
+
+            for (let i = 0; i < N; i++) {
+                const x = parseFloat(trajectory[idx][1 + i * 7]);
+                const y = parseFloat(trajectory[idx][2 + i * 7]);
+                const z = parseFloat(trajectory[idx][3 + i * 7]);
+                const vx = parseFloat(trajectory[idx][4 + i * 7]);
+                const vy = parseFloat(trajectory[idx][5 + i * 7]);
+                const vz = parseFloat(trajectory[idx][6 + i * 7]);
+                const m = parseFloat(trajectory[idx][7 + i * 7]);
+
+                bodiesArr.push({ x, y, z, vx, vy, vz, m });
+
+                E += 0.5 * m * (vx * vx + vy * vy + vz * vz);
+                Px += m * vx;
+                Py += m * vy;
+                Pz += m * vz;
+                Lx += m * (y * vz - z * vy);
+                Ly += m * (z * vx - x * vz);
+                Lz += m * (x * vy - y * vx);
+                CMx += m * x;
+                CMy += m * y;
+                CMz += m * z;
+                CMvx += m * vx;
+                CMvy += m * vy;
+                CMvz += m * vz;
+                M += m;
+            }
+
+            CMx /= M; CMy /= M; CMz /= M;
+            CMvx /= M; CMvy /= M; CMvz /= M;
+
+            // Potential energy
+            for (let i = 0; i < N; i++) {
+                for (let j = i + 1; j < N; j++) {
+                    const dx = bodiesArr[i].x - bodiesArr[j].x;
+                    const dy = bodiesArr[i].y - bodiesArr[j].y;
+                    const dz = bodiesArr[i].z - bodiesArr[j].z;
+                    const r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    E -= G * bodiesArr[i].m * bodiesArr[j].m / r;
+                }
+            }
+
+            return { E, Px, Py, Pz, Lx, Ly, Lz, CMx, CMy, CMz, CMvx, CMvy, CMvz };
+        }
+
+        function computeAllDiagnostics() {
+            const D = {
+                E: [], Px: [], Py: [], Pz: [],
+                Lx: [], Ly: [], Lz: [],
+                CMx: [], CMy: [], CMz: [],
+                CMvx: [], CMvy: [], CMvz: []
+            };
+
+            for (let i = 0; i < trajectory.length; i++) {
+                const res = computeIntegrals(i);
+                for (let k in D) D[k].push(res[k]);
+            }
+
+            diagnosticData = D;
+            initialIntegrals = computeIntegrals(0);
+        }
+
+        function getErrorClass(error) {
+            if (error < 1e-6) return 'error-good';
+            if (error < 1e-3) return 'error-warning';
+            return 'error-bad';
+        }
+
+        function updateDisplay(idx) {
+            if (!diagnosticData || !initialIntegrals) return;
+
+            const current = computeIntegrals(idx);
+            const initial = initialIntegrals;
+
+            // Calculate errors
+            const errors = {
+                E: Math.abs((current.E - initial.E) / (Math.abs(initial.E) + 1e-10)),
+                Px: Math.abs(current.Px - initial.Px),
+                Py: Math.abs(current.Py - initial.Py),
+                Pz: Math.abs(current.Pz - initial.Pz),
+                Lx: Math.abs((current.Lx - initial.Lx) / (Math.abs(initial.Lx) + 1e-10)),
+                Ly: Math.abs((current.Ly - initial.Ly) / (Math.abs(initial.Ly) + 1e-10)),
+                Lz: Math.abs((current.Lz - initial.Lz) / (Math.abs(initial.Lz) + 1e-10))
+            };
+
+            // Find which quantity has the maximum error
+            let maxError = 0;
+            let maxErrorQuantity = '';
+            for (const [quantity, error] of Object.entries(errors)) {
+                if (error > maxError) {
+                    maxError = error;
+                    maxErrorQuantity = quantity;
+                }
+            }
+
+            // Update time displays
+            document.getElementById('currentTime').textContent = trajectory[idx][0];
+            document.getElementById('timeValue').textContent = parseFloat(trajectory[idx][0]).toFixed(2);
+            document.getElementById('currentFrame').textContent = idx;
+
+            // Update max error display
+            const maxErrorQuantityEl = document.getElementById('maxErrorQuantity');
+            const maxErrorValueEl = document.getElementById('maxErrorValue');
+            
+            // Map quantity codes to readable names
+            const quantityNames = {
+                'E': 'Energy',
+                'Px': 'Momentum X', 
+                'Py': 'Momentum Y',
+                'Pz': 'Momentum Z',
+                'Lx': 'Angular Mom. X',
+                'Ly': 'Angular Mom. Y',
+                'Lz': 'Angular Mom. Z'
+            };
+
+            const errorClass = getErrorClass(maxError);
+            maxErrorQuantityEl.textContent = quantityNames[maxErrorQuantity] || maxErrorQuantity;
+            maxErrorQuantityEl.className = 'max-error-quantity ' + errorClass;
+            maxErrorValueEl.textContent = maxError.toExponential(2);
+            maxErrorValueEl.className = 'stat-value ' + errorClass;
+
+            // Update integrals display
+            const integralsHTML = `
+                <div class="integral-row">
+                    <span class="integral-label">Energy:</span>
+                    <span class="integral-value">${current.E.toFixed(4)}</span>
+                    <span class="error-indicator ${getErrorClass(errors.E)}">Δ${errors.E.toExponential(1)}</span>
+                </div>
+                <div class="integral-row">
+                    <span class="integral-label">Px:</span>
+                    <span class="integral-value">${current.Px.toFixed(4)}</span>
+                    <span class="error-indicator ${getErrorClass(errors.Px)}">Δ${errors.Px.toExponential(1)}</span>
+                </div>
+                <div class="integral-row">
+                    <span class="integral-label">Py:</span>
+                    <span class="integral-value">${current.Py.toFixed(4)}</span>
+                    <span class="error-indicator ${getErrorClass(errors.Py)}">Δ${errors.Py.toExponential(1)}</span>
+                </div>
+                <div class="integral-row">
+                    <span class="integral-label">Pz:</span>
+                    <span class="integral-value">${current.Pz.toFixed(4)}</span>
+                    <span class="error-indicator ${getErrorClass(errors.Pz)}">Δ${errors.Pz.toExponential(1)}</span>
+                </div>
+                <div class="integral-row">
+                    <span class="integral-label">Lx:</span>
+                    <span class="integral-value">${current.Lx.toFixed(4)}</span>
+                    <span class="error-indicator ${getErrorClass(errors.Lx)}">Δ${errors.Lx.toExponential(1)}</span>
+                </div>
+                <div class="integral-row">
+                    <span class="integral-label">Ly:</span>
+                    <span class="integral-value">${current.Ly.toFixed(4)}</span>
+                    <span class="error-indicator ${getErrorClass(errors.Ly)}">Δ${errors.Ly.toExponential(1)}</span>
+                </div>
+                <div class="integral-row">
+                    <span class="integral-label">Lz:</span>
+                    <span class="integral-value">${current.Lz.toFixed(4)}</span>
+                    <span class="error-indicator ${getErrorClass(errors.Lz)}">Δ${errors.Lz.toExponential(1)}</span>
+                </div>
+                <div class="integral-row">
+                    <span class="integral-label">CM:</span>
+                    <span class="integral-value">(${current.CMx.toFixed(2)},${current.CMy.toFixed(2)},${current.CMz.toFixed(2)})</span>
+                </div>
+            `;
+
+            document.getElementById('integralsDisplay').innerHTML = integralsHTML;
+
+            // Update timeline
+            const progress = (idx / (trajectory.length - 1)) * 100;
+            document.getElementById('timelineProgress').style.width = progress + '%';
+        }
+
+        // ========== Playback Controls ==========
+        function playbackLoop() {
+            if (!isPlaying || !trajectory) return;
+
+            currentIdx += playbackSpeed;
+            if (currentIdx >= trajectory.length - 1) {
+                currentIdx = trajectory.length - 1;
+                pausePlayback();
+            }
+
+            update3D(currentIdx);
+            updateDisplay(currentIdx);
+
+            animFrame = requestAnimationFrame(playbackLoop);
+        }
+
+        function startPlayback() {
+            isPlaying = true;
+            document.getElementById('playPauseBtn').innerHTML = '⏸ Pause';
+            playbackLoop();
+        }
+
+        function pausePlayback() {
+            isPlaying = false;
+            document.getElementById('playPauseBtn').innerHTML = '▶ Play';
+            cancelAnimationFrame(animFrame);
+        }
+
+        function rewindPlayback() {
+            currentIdx = 0;
+            update3D(currentIdx);
+            updateDisplay(currentIdx);
+        }
+
+        function resetPlayback() {
+            pausePlayback();
+            rewindPlayback();
+        }
+
+        // ========== File Loading ==========
+        function loadCSV(file) {
+            Papa.parse(file, {
+                complete: function(results) {
+                    trajectory = results.data.filter(row => row.length === 22 && !isNaN(parseFloat(row[0])));
+
+                    if (trajectory.length === 0) {
+                        alert('Invalid CSV format. Please check the file.');
+                        return;
+                    }
+
+                    document.getElementById('totalFrames').textContent = trajectory.length - 1;
+
+                    computeAllDiagnostics();
+                    currentIdx = 0;
+                    update3D(currentIdx);
+                    updateDisplay(currentIdx);
+
+                    console.log(`Loaded ${trajectory.length} frames`);
+                }
+            });
+        }
+
+        // ========== Event Listeners ==========
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) loadCSV(file);
+        });
+
+        document.getElementById('fileWrapper').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('playPauseBtn').addEventListener('click', () => {
+            if (isPlaying) pausePlayback();
+            else startPlayback();
+        });
+
+        document.getElementById('rewindBtn').addEventListener('click', rewindPlayback);
+        document.getElementById('resetBtn').addEventListener('click', resetPlayback);
+
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            playbackSpeed = parseInt(e.target.value);
+            document.getElementById('speedDisplay').textContent = playbackSpeed + 'x';
+        });
+
+        document.getElementById('timelineBar').addEventListener('click', (e) => {
+            if (!trajectory) return;
+            const rect = e.target.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percent = x / rect.width;
+            currentIdx = Math.floor(percent * (trajectory.length - 1));
+            update3D(currentIdx);
+            updateDisplay(currentIdx);
+        });
+
+        // ========== Initialize ==========
+        init3D();
+    </script>
+</body>
+</html>
